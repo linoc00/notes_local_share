@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="it" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blocco Note Instant - Condividi via Link</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Inter & Fira Code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome per le icone -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- LZ-String per compressione URL e supporto UTF-8 perfetto -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar per la textarea */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.6);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
+
+    <!-- Navbar / Header -->
+    <header class="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Logo & Titolo -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                    <i class="fa-solid fa-note-sticky text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">NoteShare</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Blocco note senza server</p>
+                </div>
+            </div>
+
+            <!-- Azioni veloci & Tema -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Pulsante Condividi Link -->
+                <button id="btnShare" onclick="copyShareLink()" class="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-md shadow-indigo-600/20 active:scale-95">
+                    <i class="fa-solid fa-link"></i>
+                    <span class="hidden sm:inline">Copia Link</span>
+                </button>
+
+                <!-- Menu Altre Azioni -->
+                <button onclick="downloadNote()" title="Scarica .txt" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+                <button onclick="copyToClipboard()" title="Copia Testo" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                    <i class="fa-solid fa-copy"></i>
+                </button>
+                <button onclick="confirmClear()" title="Cancella Tutto" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 dark:text-slate-300 dark:hover:bg-red-950/30 dark:hover:border-red-800 dark:hover:text-red-400 transition-colors">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+
+                <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 my-auto mx-1"></div>
+
+                <!-- Toggle Tema -->
+                <button id="themeToggle" onclick="toggleTheme()" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                    <i id="themeIcon" class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content principale -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+        
+        <!-- Avviso Privacy e utilizzo -->
+        <div class="mb-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl p-4 text-xs sm:text-sm text-indigo-900 dark:text-indigo-200 flex items-start justify-between shadow-sm">
+            <div class="flex items-start space-x-3">
+                <i class="fa-solid fa-shield-halved text-indigo-500 text-lg mt-0.5 flex-shrink-0"></i>
+                <div>
+                    <span class="font-semibold">Privacy totale:</span> Il testo viene salvato direttamente dentro l'URL. Nessun dato passa attraverso server o database esterni. Modifica il testo e condividi il link aggiornato!
+                </div>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200 ml-2">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Editor Container -->
+        <div class="flex-1 bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all">
+            
+            <!-- Toolbar Editor -->
+            <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/50 flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-2">
+                <div class="flex items-center space-x-2">
+                    <span id="saveStatus" class="inline-flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span>Pronto</span>
+                    </span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button onclick="toggleFontMono()" id="btnFont" class="hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1">
+                        <i class="fa-solid fa-font"></i>
+                        <span id="fontLabel">Proporzionale</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Area di Scrittura -->
+            <textarea id="editor" 
+                placeholder="Inizia a scrivere qui il tuo testo... Il link della pagina si aggiornerà per permetterti di condividerlo al volo."
+                class="flex-1 w-full p-6 bg-transparent resize-none outline-none border-none text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-base leading-relaxed"
+                spellcheck="false"
+                oninput="handleInput()"></textarea>
+
+            <!-- Footer Stats dell'Editor -->
+            <div class="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+                <div class="flex space-x-4">
+                    <span>Parole: <strong id="wordCount" class="text-slate-700 dark:text-slate-200">0</strong></span>
+                    <span>Caratteri: <strong id="charCount" class="text-slate-700 dark:text-slate-200">0</strong></span>
+                </div>
+                <div>
+                    <span id="urlLength" class="hidden sm:inline">Dimensione Link: <strong id="linkSize" class="text-slate-700 dark:text-slate-200">0 B</strong></span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-3 rounded-xl shadow-xl flex items-center space-x-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50 pointer-events-none">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
+        <span id="toastMessage" class="text-sm font-medium">Link copiato negli appunti!</span>
+    </div>
+
+    <!-- Modal Conferma Cancellazione -->
+    <div id="clearModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-700">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">Cancellare la nota?</h3>
+            <p class="text-slate-600 dark:text-slate-300 text-sm mb-6">Sei sicuro di voler svuotare il blocco note? Questa azione eliminerà anche il contenuto memorizzato nel link corrente.</p>
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeClearModal()" class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Annulla</button>
+                <button onclick="clearText()" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors">Svuota</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const wordCount = document.getElementById('wordCount');
+        const charCount = document.getElementById('charCount');
+        const linkSize = document.getElementById('linkSize');
+        const saveStatus = document.getElementById('saveStatus');
+        let isMono = false;
+        let updateTimeout;
+
+        // Inizializzazione all'avvio
+        window.onload = () => {
+            initTheme();
+            loadNoteFromUrl();
+            updateStats();
+        };
+
+        // Gestione dell'input con debounce per prestazioni e URL puliti
+        function handleInput() {
+            updateStats();
+            
+            // Stato salvataggio visivo
+            saveStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span><span>Aggiornamento link...</span>`;
+            
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                updateUrlHash();
+                saveStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>Link aggiornato</span>`;
+            }, 300);
+        }
+
+        // Codifica e salvataggio nell'URL
+        function updateUrlHash() {
+            const text = editor.value;
+            if (!text.trim()) {
+                history.replaceState(null, '', window.location.pathname + window.location.search);
+                return;
+            }
+
+            try {
+                // Compressione avanzata per contenere più testo possibile e gestire UTF-8/Emoji perfettamente
+                const compressed = LZString.compressToEncodedURIComponent(text);
+                history.replaceState(null, '', '#' + compressed);
+            } catch (e) {
+                console.error("Errore durante la codifica dell'URL:", e);
+            }
+        }
+
+        // Decodifica e lettura dall'URL
+        function loadNoteFromUrl() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) return;
+
+            try {
+                // 1. Prova prima con LZString (formato primario ed efficiente)
+                let decompressed = LZString.decompressFromEncodedURIComponent(hash);
+                
+                // 2. Fallback per retrocompatibilità base64 semplice
+                if (!decompressed) {
+                    try {
+                        decompressed = decodeURIComponent(atob(hash));
+                    } catch (err) {
+                        // fallback alternativo
+                        decompressed = decodeURIComponent(escape(atob(hash)));
+                    }
+                }
+
+                if (decompressed) {
+                    editor.value = decompressed;
+                    updateStats();
+                }
+            } catch (e) {
+                console.error("Impossibile decodificare la nota dall'URL:", e);
+                showToast("Errore nel caricamento della nota dal link", "error");
+            }
+        }
+
+        // Calcolo statistiche testo
+        function updateStats() {
+            const text = editor.value;
+            
+            // Conteggio caratteri
+            charCount.textContent = text.length;
+
+            // Conteggio parole
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            wordCount.textContent = words;
+
+            // Dimensione stimata dell'URL attuale
+            const currentUrl = window.location.href;
+            const bytes = new Blob([currentUrl]).size;
+            if (bytes < 1024) {
+                linkSize.textContent = `${bytes} B`;
+            } else {
+                linkSize.textContent = `${(bytes / 1024).toFixed(1)} KB`;
+            }
+        }
+
+        // Copia il link di condivisione negli appunti
+        function copyShareLink() {
+            updateUrlHash();
+            const shareUrl = window.location.href;
+
+            copyToClipboardText(shareUrl, () => {
+                showToast("Link della nota copiato negli appunti!", "success");
+            });
+        }
+
+        // Copia il solo testo contenuto
+        function copyToClipboard() {
+            if (!editor.value) {
+                showToast("Nessun testo da copiare", "error");
+                return;
+            }
+            copyToClipboardText(editor.value, () => {
+                showToast("Testo copiato negli appunti!", "success");
+            });
+        }
+
+        // Helper universale per la copia
+        function copyToClipboardText(text, onSuccess) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
+            } else {
+                fallbackCopy(text, onSuccess);
+            }
+        }
+
+        function fallbackCopy(text, onSuccess) {
+            const tempArea = document.createElement("textarea");
+            tempArea.value = text;
+            tempArea.style.position = "fixed";
+            tempArea.style.left = "-9999px";
+            document.body.appendChild(tempArea);
+            tempArea.focus();
+            tempArea.select();
+            try {
+                document.execCommand('copy');
+                onSuccess();
+            } catch (err) {
+                showToast("Errore durante la copia", "error");
+            }
+            document.body.removeChild(tempArea);
+        }
+
+        // Scarica come file .txt
+        function downloadNote() {
+            const text = editor.value;
+            if (!text.trim()) {
+                showToast("Nessun contenuto da scaricare", "error");
+                return;
+            }
+            
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Genera nome file basato sulla prima riga o sulla data
+            const firstLine = text.trim().split('\n')[0].substring(0, 20).replace(/[^a-zA-Z0-9-_\s]/g, '');
+            const filename = (firstLine || 'nota') + '_' + new Date().toISOString().slice(0, 10) + '.txt';
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast("Download avviato", "success");
+        }
+
+        // Modal Cancellazione Testo
+        function confirmClear() {
+            if (!editor.value) return;
+            const modal = document.getElementById('clearModal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        function closeClearModal() {
+            const modal = document.getElementById('clearModal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function clearText() {
+            editor.value = '';
+            updateUrlHash();
+            updateStats();
+            closeClearModal();
+            showToast("Blocco note svuotato", "success");
+        }
+
+        // Cambio Font (Proporzionale vs Monospace)
+        function toggleFontMono() {
+            isMono = !isMono;
+            const fontLabel = document.getElementById('fontLabel');
+            if (isMono) {
+                editor.classList.add('font-mono');
+                fontLabel.textContent = 'Monospazio';
+            } else {
+                editor.classList.remove('font-mono');
+                fontLabel.textContent = 'Proporzionale';
+            }
+        }
+
+        // Gestione Tema Chiaro / Scuro
+        function initTheme() {
+            const isDark = localStorage.getItem('theme') === 'dark' || 
+                (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('themeIcon').className = 'fa-solid fa-sun';
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('themeIcon').className = 'fa-solid fa-moon';
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            const themeIcon = document.getElementById('themeIcon');
+            
+            if (isDark) {
+                localStorage.setItem('theme', 'dark');
+                themeIcon.className = 'fa-solid fa-sun';
+            } else {
+                localStorage.setItem('theme', 'light');
+                themeIcon.className = 'fa-solid fa-moon';
+            }
+        }
+
+        // Sistema di notifiche Toast
+        function showToast(message, type = "success") {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.textContent = message;
+
+            if (type === "success") {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400 dark:text-emerald-500";
+            } else {
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-amber-400 dark:text-amber-500";
+            }
+
+            // Mostra toast
+            toast.classList.remove('translate-y-20', 'opacity-0');
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
