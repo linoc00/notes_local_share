@@ -2,8 +2,8 @@
 <html lang="it" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blocco Note Instant - Condividi via Link</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Blocco Note Instant - QR Code & Link</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -12,8 +12,8 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        mono: ['Fira Code', 'monospace'],
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['Fira Code', 'Consolas', 'monospace'],
                     }
                 }
             }
@@ -25,15 +25,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome per le icone -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- LZ-String per compressione URL e supporto UTF-8 perfetto -->
+    <!-- LZ-String per compressione URL e supporto UTF-8 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <!-- QRCode.js per generare il codice QR direttamente nel browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            /* Gestione Safe Area per dispositivi iOs e Android senza cornici */
+            padding-bottom: env(safe-area-inset-bottom);
         }
-        /* Custom scrollbar per la textarea */
+        /* Custom scrollbar */
         textarea::-webkit-scrollbar {
-            width: 8px;
+            width: 6px;
         }
         textarea::-webkit-scrollbar-track {
             background: transparent;
@@ -45,33 +49,48 @@
         textarea::-webkit-scrollbar-thumb:hover {
             background: rgba(156, 163, 175, 0.6);
         }
+        /* Disabilita evidenziatore blu al tocco su touch screen */
+        button, a, input, textarea {
+            -webkit-tap-highlight-color: transparent;
+        }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-[100dvh] flex flex-col transition-colors duration-200 overflow-hidden select-none">
 
-    <!-- Navbar / Header -->
-    <header class="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <!-- Navbar Top Mobile & Desktop -->
+    <header class="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur shrink-0 z-20">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+            
             <!-- Logo & Titolo -->
             <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-                    <i class="fa-solid fa-note-sticky text-xl"></i>
+                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                    <i class="fa-solid fa-note-sticky text-lg sm:text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight">NoteShare</h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Blocco note senza server</p>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight">NoteShare</h1>
+                    <div class="flex items-center space-x-2">
+                        <span id="saveStatus" class="inline-flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span>Pronto</span>
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Azioni veloci & Tema -->
-            <div class="flex items-center space-x-2 sm:space-x-3">
-                <!-- Pulsante Condividi Link -->
-                <button id="btnShare" onclick="copyShareLink()" class="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-md shadow-indigo-600/20 active:scale-95">
-                    <i class="fa-solid fa-link"></i>
-                    <span class="hidden sm:inline">Copia Link</span>
+            <!-- Toolbar Azioni (Visibile su Tablet/Desktop) -->
+            <div class="hidden md:flex items-center space-x-2">
+                <button onclick="handleShare()" class="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-md shadow-indigo-600/20 active:scale-95">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    <span>Condividi</span>
+                </button>
+                
+                <button onclick="openQrModal()" class="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all">
+                    <i class="fa-solid fa-qrcode text-indigo-500"></i>
+                    <span>QR Code</span>
                 </button>
 
-                <!-- Menu Altre Azioni -->
+                <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 my-auto mx-1"></div>
+
                 <button onclick="downloadNote()" title="Scarica .txt" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
                     <i class="fa-solid fa-download"></i>
                 </button>
@@ -81,89 +100,143 @@
                 <button onclick="confirmClear()" title="Cancella Tutto" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 dark:text-slate-300 dark:hover:bg-red-950/30 dark:hover:border-red-800 dark:hover:text-red-400 transition-colors">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
+                <button id="themeToggleDesktop" onclick="toggleTheme()" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                    <i class="themeIcon fa-solid fa-moon"></i>
+                </button>
+            </div>
 
-                <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 my-auto mx-1"></div>
-
-                <!-- Toggle Tema -->
-                <button id="themeToggle" onclick="toggleTheme()" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
-                    <i id="themeIcon" class="fa-solid fa-moon"></i>
+            <!-- Pulsante Tema & Font per Mobile Top -->
+            <div class="flex md:hidden items-center space-x-1.5">
+                <button onclick="toggleFontMono()" id="btnFontMobile" class="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-mono border border-slate-200 dark:border-slate-800">
+                    <i class="fa-solid fa-font"></i>
+                </button>
+                <button onclick="toggleTheme()" class="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm border border-slate-200 dark:border-slate-800">
+                    <i class="themeIcon fa-solid fa-moon"></i>
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- Content principale -->
-    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+    <!-- Content principale dell'Editor -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 flex flex-col min-h-0">
         
-        <!-- Avviso Privacy e utilizzo -->
-        <div class="mb-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl p-4 text-xs sm:text-sm text-indigo-900 dark:text-indigo-200 flex items-start justify-between shadow-sm">
-            <div class="flex items-start space-x-3">
-                <i class="fa-solid fa-shield-halved text-indigo-500 text-lg mt-0.5 flex-shrink-0"></i>
-                <div>
-                    <span class="font-semibold">Privacy totale:</span> Il testo viene salvato direttamente dentro l'URL. Nessun dato passa attraverso server o database esterni. Modifica il testo e condividi il link aggiornato!
-                </div>
-            </div>
-            <button onclick="this.parentElement.remove()" class="text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200 ml-2">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-
-        <!-- Editor Container -->
-        <div class="flex-1 bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all">
+        <!-- Editor Card Container -->
+        <div class="flex-1 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col min-h-0 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/40 transition-all">
             
-            <!-- Toolbar Editor -->
-            <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/50 flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-2">
+            <!-- Toolbar Desktop Info Font -->
+            <div class="hidden md:flex px-4 py-2 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/50 items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <div class="flex items-center space-x-2">
-                    <span id="saveStatus" class="inline-flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        <span>Pronto</span>
-                    </span>
+                    <i class="fa-solid fa-shield-halved text-indigo-500"></i>
+                    <span>Nessun server: il testo viene salvato direttamente nel link o nel codice QR</span>
                 </div>
-                
-                <div class="flex items-center space-x-4">
-                    <button onclick="toggleFontMono()" id="btnFont" class="hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1">
-                        <i class="fa-solid fa-font"></i>
-                        <span id="fontLabel">Proporzionale</span>
-                    </button>
-                </div>
+                <button onclick="toggleFontMono()" id="btnFontDesktop" class="hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1">
+                    <i class="fa-solid fa-font"></i>
+                    <span id="fontLabel">Font: Proporzionale</span>
+                </button>
             </div>
 
-            <!-- Area di Scrittura -->
+            <!-- Area di Scrittura (Ottimizzata per Touch & Mobile) -->
             <textarea id="editor" 
-                placeholder="Inizia a scrivere qui il tuo testo... Il link della pagina si aggiornerà per permetterti di condividerlo al volo."
-                class="flex-1 w-full p-6 bg-transparent resize-none outline-none border-none text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-base leading-relaxed"
+                placeholder="Inizia a scrivere la tua nota... Il link e il codice QR si aggiornano in tempo reale."
+                class="flex-1 w-full p-4 sm:p-6 bg-transparent resize-none outline-none border-none text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-base leading-relaxed select-text"
                 spellcheck="false"
                 oninput="handleInput()"></textarea>
 
-            <!-- Footer Stats dell'Editor -->
-            <div class="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
-                <div class="flex space-x-4">
+            <!-- Footer Stats -->
+            <div class="px-4 py-2 sm:py-3 bg-slate-50/80 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">
+                <div class="flex space-x-3 sm:space-x-4">
                     <span>Parole: <strong id="wordCount" class="text-slate-700 dark:text-slate-200">0</strong></span>
                     <span>Caratteri: <strong id="charCount" class="text-slate-700 dark:text-slate-200">0</strong></span>
                 </div>
-                <div>
-                    <span id="urlLength" class="hidden sm:inline">Dimensione Link: <strong id="linkSize" class="text-slate-700 dark:text-slate-200">0 B</strong></span>
+                <div class="text-right">
+                    <span>URL: <strong id="linkSize" class="text-slate-700 dark:text-slate-200">0 B</strong></span>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-3 rounded-xl shadow-xl flex items-center space-x-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50 pointer-events-none">
-        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
-        <span id="toastMessage" class="text-sm font-medium">Link copiato negli appunti!</span>
+    <!-- BARRA D'AZIONE INFERIORE (Ottimizzata Mobile / Smartphone) -->
+    <div class="md:hidden bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 px-2 py-2 shrink-0 backdrop-blur z-20">
+        <div class="grid grid-cols-5 gap-1 max-w-md mx-auto">
+            
+            <!-- Tasto Condividi Nativo -->
+            <button onclick="handleShare()" class="flex flex-col items-center justify-center py-2 px-1 rounded-xl active:bg-indigo-50 dark:active:bg-slate-800 text-indigo-600 dark:text-indigo-400 transition-colors">
+                <i class="fa-solid fa-share-nodes text-lg mb-1"></i>
+                <span class="text-[10px] font-semibold">Condividi</span>
+            </button>
+
+            <!-- Tasto QR Code -->
+            <button onclick="openQrModal()" class="flex flex-col items-center justify-center py-2 px-1 rounded-xl active:bg-slate-100 dark:active:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors">
+                <i class="fa-solid fa-qrcode text-lg text-indigo-500 mb-1"></i>
+                <span class="text-[10px] font-medium">QR Code</span>
+            </button>
+
+            <!-- Tasto Copia Testo -->
+            <button onclick="copyToClipboard()" class="flex flex-col items-center justify-center py-2 px-1 rounded-xl active:bg-slate-100 dark:active:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors">
+                <i class="fa-solid fa-copy text-lg mb-1"></i>
+                <span class="text-[10px] font-medium">Copia</span>
+            </button>
+
+            <!-- Tasto Scarica -->
+            <button onclick="downloadNote()" class="flex flex-col items-center justify-center py-2 px-1 rounded-xl active:bg-slate-100 dark:active:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors">
+                <i class="fa-solid fa-download text-lg mb-1"></i>
+                <span class="text-[10px] font-medium">Salva</span>
+            </button>
+
+            <!-- Tasto Elimina -->
+            <button onclick="confirmClear()" class="flex flex-col items-center justify-center py-2 px-1 rounded-xl active:bg-red-50 dark:active:bg-red-950/40 text-slate-600 dark:text-slate-400 active:text-red-600 transition-colors">
+                <i class="fa-solid fa-trash-can text-lg mb-1"></i>
+                <span class="text-[10px] font-medium">Cancella</span>
+            </button>
+
+        </div>
     </div>
 
-    <!-- Modal Conferma Cancellazione -->
-    <div id="clearModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-opacity duration-200">
-        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-700">
-            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">Cancellare la nota?</h3>
-            <p class="text-slate-600 dark:text-slate-300 text-sm mb-6">Sei sicuro di voler svuotare il blocco note? Questa azione eliminerà anche il contenuto memorizzato nel link corrente.</p>
-            <div class="flex justify-end space-x-3">
-                <button onclick="closeClearModal()" class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Annulla</button>
-                <button onclick="clearText()" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors">Svuota</button>
+    <!-- MODALE GENERATORE QR CODE -->
+    <div id="qrModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-all duration-200">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-xs sm:max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center transform scale-95 transition-transform duration-200" id="qrModalCard">
+            
+            <div class="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl mb-3">
+                <i class="fa-solid fa-qrcode"></i>
+            </div>
+            
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">Scansiona QR Code</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-5">Inquadra con la fotocamera dello smartphone per aprire e leggere subito la nota.</p>
+            
+            <!-- Contenitore Immagine QR Code -->
+            <div class="p-3 bg-white rounded-2xl shadow-inner border border-slate-200 flex items-center justify-center mb-5" id="qrcodeContainer">
+                <div id="qrcode"></div>
+            </div>
+
+            <!-- Azioni Modal QR -->
+            <div class="w-full space-y-2">
+                <button onclick="copyShareLink()" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all shadow-md shadow-indigo-600/20 active:scale-95 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-link"></i>
+                    <span>Copia Link Condivisione</span>
+                </button>
+                <button onclick="closeQrModal()" class="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">
+                    Chiudi
+                </button>
             </div>
         </div>
+    </div>
+
+    <!-- MODALE CONFERMA CANCELLAZIONE -->
+    <div id="clearModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-all duration-200">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-xs sm:max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-700">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">Svuotare la nota?</h3>
+            <p class="text-slate-600 dark:text-slate-300 text-sm mb-6">Il testo verrà cancellato ed il link di condivisione verrà azzerato. Sei sicuro?</p>
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeClearModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium">Annulla</button>
+                <button onclick="clearText()" class="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium">Cancella</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50 pointer-events-none whitespace-nowrap">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
+        <span id="toastMessage" class="text-sm font-medium">Azione completata</span>
     </div>
 
     <script>
@@ -172,31 +245,32 @@
         const charCount = document.getElementById('charCount');
         const linkSize = document.getElementById('linkSize');
         const saveStatus = document.getElementById('saveStatus');
+        
         let isMono = false;
         let updateTimeout;
+        let qrCodeInstance = null;
 
-        // Inizializzazione all'avvio
+        // Inizializzazione applicazione
         window.onload = () => {
             initTheme();
             loadNoteFromUrl();
             updateStats();
         };
 
-        // Gestione dell'input con debounce per prestazioni e URL puliti
+        // Gestione Input e aggiornamento URL in tempo reale
         function handleInput() {
             updateStats();
             
-            // Stato salvataggio visivo
-            saveStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span><span>Aggiornamento link...</span>`;
+            saveStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span><span>Aggiornamento...</span>`;
             
             clearTimeout(updateTimeout);
             updateTimeout = setTimeout(() => {
                 updateUrlHash();
-                saveStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>Link aggiornato</span>`;
-            }, 300);
+                saveStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>Pronto</span>`;
+            }, 250);
         }
 
-        // Codifica e salvataggio nell'URL
+        // Codifica con LZString nell'URL hash
         function updateUrlHash() {
             const text = editor.value;
             if (!text.trim()) {
@@ -205,29 +279,26 @@
             }
 
             try {
-                // Compressione avanzata per contenere più testo possibile e gestire UTF-8/Emoji perfettamente
                 const compressed = LZString.compressToEncodedURIComponent(text);
                 history.replaceState(null, '', '#' + compressed);
             } catch (e) {
-                console.error("Errore durante la codifica dell'URL:", e);
+                console.error("Errore compressione URL:", e);
             }
         }
 
-        // Decodifica e lettura dall'URL
+        // Decodifica dall'URL hash
         function loadNoteFromUrl() {
             const hash = window.location.hash.substring(1);
             if (!hash) return;
 
             try {
-                // 1. Prova prima con LZString (formato primario ed efficiente)
                 let decompressed = LZString.decompressFromEncodedURIComponent(hash);
                 
-                // 2. Fallback per retrocompatibilità base64 semplice
+                // Fallback base64 standard
                 if (!decompressed) {
                     try {
                         decompressed = decodeURIComponent(atob(hash));
                     } catch (err) {
-                        // fallback alternativo
                         decompressed = decodeURIComponent(escape(atob(hash)));
                     }
                 }
@@ -237,43 +308,101 @@
                     updateStats();
                 }
             } catch (e) {
-                console.error("Impossibile decodificare la nota dall'URL:", e);
-                showToast("Errore nel caricamento della nota dal link", "error");
+                console.error("Errore decodifica nota dall'URL:", e);
+                showToast("Impossibile leggere la nota dal link", "error");
             }
         }
 
         // Calcolo statistiche testo
         function updateStats() {
             const text = editor.value;
-            
-            // Conteggio caratteri
             charCount.textContent = text.length;
 
-            // Conteggio parole
             const words = text.trim() ? text.trim().split(/\s+/).length : 0;
             wordCount.textContent = words;
 
-            // Dimensione stimata dell'URL attuale
             const currentUrl = window.location.href;
             const bytes = new Blob([currentUrl]).size;
-            if (bytes < 1024) {
-                linkSize.textContent = `${bytes} B`;
-            } else {
-                linkSize.textContent = `${(bytes / 1024).toFixed(1)} KB`;
-            }
+            linkSize.textContent = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
         }
 
-        // Copia il link di condivisione negli appunti
-        function copyShareLink() {
+        // CONDIVISIONE NATIVA MOBILE / SMARTPHONE
+        function handleShare() {
             updateUrlHash();
             const shareUrl = window.location.href;
 
+            if (!editor.value.trim()) {
+                showToast("Scrivi prima qualcosa da condividere!", "error");
+                return;
+            }
+
+            // Web Share API nativa per smartphone (WhatsApp, Telegram, SMS, ecc.)
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Nota Condivisa - NoteShare',
+                    text: 'Apri questa nota nel tuo browser:',
+                    url: shareUrl,
+                })
+                .then(() => showToast("Nota condivisa!", "success"))
+                .catch((err) => {
+                    if (err.name !== 'AbortError') {
+                        copyShareLink();
+                    }
+                });
+            } else {
+                copyShareLink();
+            }
+        }
+
+        // MODALE E GENERATORE QR CODE
+        function openQrModal() {
+            updateUrlHash();
+            const shareUrl = window.location.href;
+            const qrContainer = document.getElementById("qrcode");
+            
+            // Pulisce vecchio QR
+            qrContainer.innerHTML = "";
+
+            // Genera nuovo QR Code
+            try {
+                qrCodeInstance = new QRCode(qrContainer, {
+                    text: shareUrl,
+                    width: 180,
+                    height: 180,
+                    colorDark : "#0f172a",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.M
+                });
+
+                const modal = document.getElementById('qrModal');
+                const card = document.getElementById('qrModalCard');
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                card.classList.remove('scale-95');
+                card.classList.add('scale-100');
+            } catch (e) {
+                console.error("Errore generazione QR Code", e);
+                showToast("Impossibile generare il QR Code", "error");
+            }
+        }
+
+        function closeQrModal() {
+            const modal = document.getElementById('qrModal');
+            const card = document.getElementById('qrModalCard');
+            card.classList.remove('scale-100');
+            card.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        // Copia il link di condivisione
+        function copyShareLink() {
+            updateUrlHash();
+            const shareUrl = window.location.href;
             copyToClipboardText(shareUrl, () => {
-                showToast("Link della nota copiato negli appunti!", "success");
+                showToast("Link della nota copiato!", "success");
             });
         }
 
-        // Copia il solo testo contenuto
+        // Copia testo semplice
         function copyToClipboard() {
             if (!editor.value) {
                 showToast("Nessun testo da copiare", "error");
@@ -284,7 +413,7 @@
             });
         }
 
-        // Helper universale per la copia
+        // Utility Copia Appunti
         function copyToClipboardText(text, onSuccess) {
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
@@ -310,11 +439,11 @@
             document.body.removeChild(tempArea);
         }
 
-        // Scarica come file .txt
+        // Scarica File .txt
         function downloadNote() {
             const text = editor.value;
             if (!text.trim()) {
-                showToast("Nessun contenuto da scaricare", "error");
+                showToast("Nessun testo da salvare", "error");
                 return;
             }
             
@@ -323,11 +452,9 @@
             const a = document.createElement('a');
             a.href = url;
             
-            // Genera nome file basato sulla prima riga o sulla data
-            const firstLine = text.trim().split('\n')[0].substring(0, 20).replace(/[^a-zA-Z0-9-_\s]/g, '');
-            const filename = (firstLine || 'nota') + '_' + new Date().toISOString().slice(0, 10) + '.txt';
+            const firstLine = text.trim().split('\n')[0].substring(0, 18).replace(/[^a-zA-Z0-9-_\s]/g, '');
+            a.download = (firstLine || 'nota') + '_' + new Date().toISOString().slice(0, 10) + '.txt';
             
-            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -336,7 +463,7 @@
             showToast("Download avviato", "success");
         }
 
-        // Modal Cancellazione Testo
+        // Modal Cancellazione
         function confirmClear() {
             if (!editor.value) return;
             const modal = document.getElementById('clearModal');
@@ -356,47 +483,47 @@
             showToast("Blocco note svuotato", "success");
         }
 
-        // Cambio Font (Proporzionale vs Monospace)
+        // Toggle Font Monospazio / Proporzionale
         function toggleFontMono() {
             isMono = !isMono;
             const fontLabel = document.getElementById('fontLabel');
             if (isMono) {
                 editor.classList.add('font-mono');
-                fontLabel.textContent = 'Monospazio';
+                if (fontLabel) fontLabel.textContent = 'Font: Monospazio';
+                showToast("Font Monospazio attivo", "success");
             } else {
                 editor.classList.remove('font-mono');
-                fontLabel.textContent = 'Proporzionale';
+                if (fontLabel) fontLabel.textContent = 'Font: Proporzionale';
+                showToast("Font Proporzionale attivo", "success");
             }
         }
 
-        // Gestione Tema Chiaro / Scuro
+        // Gestione Tema Scuro / Chiaro
         function initTheme() {
             const isDark = localStorage.getItem('theme') === 'dark' || 
                 (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
             
-            if (isDark) {
-                document.documentElement.classList.add('dark');
-                document.getElementById('themeIcon').className = 'fa-solid fa-sun';
-            } else {
-                document.documentElement.classList.remove('dark');
-                document.getElementById('themeIcon').className = 'fa-solid fa-moon';
-            }
+            applyTheme(isDark);
         }
 
         function toggleTheme() {
-            const isDark = document.documentElement.classList.toggle('dark');
-            const themeIcon = document.getElementById('themeIcon');
-            
+            const isDark = !document.documentElement.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            applyTheme(isDark);
+        }
+
+        function applyTheme(isDark) {
+            const icons = document.querySelectorAll('.themeIcon');
             if (isDark) {
-                localStorage.setItem('theme', 'dark');
-                themeIcon.className = 'fa-solid fa-sun';
+                document.documentElement.classList.add('dark');
+                icons.forEach(i => i.className = 'themeIcon fa-solid fa-sun text-amber-400');
             } else {
-                localStorage.setItem('theme', 'light');
-                themeIcon.className = 'fa-solid fa-moon';
+                document.documentElement.classList.remove('dark');
+                icons.forEach(i => i.className = 'themeIcon fa-solid fa-moon');
             }
         }
 
-        // Sistema di notifiche Toast
+        // Sistema Toast Notifiche
         function showToast(message, type = "success") {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -410,12 +537,11 @@
                 toastIcon.className = "fa-solid fa-triangle-exclamation text-amber-400 dark:text-amber-500";
             }
 
-            // Mostra toast
             toast.classList.remove('translate-y-20', 'opacity-0');
 
             setTimeout(() => {
                 toast.classList.add('translate-y-20', 'opacity-0');
-            }, 3000);
+            }, 2600);
         }
     </script>
 </body>
